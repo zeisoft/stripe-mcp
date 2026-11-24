@@ -1,0 +1,45 @@
+name: Refresh from the catalogue
+
+# The README here is generated from HeyMetra's live connector catalogue. This job
+# re-renders it and commits ONLY when something actually changed, so the date on
+# the last commit means what it says.
+#
+# Daily rather than hourly on purpose: the catalogue does not change more than
+# once a day, and a schedule that commits nothing 23 times a day is noise in
+# every sense that matters.
+
+on:
+  schedule:
+    - cron: "52 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Render from the live catalogue
+        run: python3 tools/render.py stripe --inplace
+
+      - name: Commit, but only if something changed
+        run: |
+          if git diff --quiet; then
+            echo "The catalogue says the same thing it said yesterday. Nothing to do."
+            exit 0
+          fi
+
+          # A direct push. Two routes were measured before this one: a push under the
+          # organisation's default rules answered GH013 ("changes must be made through
+          # a pull request"), and opening the pull request instead answered "GitHub
+          # Actions is not permitted to create or approve pull requests" — a policy the
+          # organisation does not let a repository override. These eleven generated
+          # documentation repositories are excluded from that ruleset instead, which
+          # leaves it in force for every repository a person actually writes to.
+          git config user.name "heymetra-docs"
+          git config user.email "hello@heymetra.com"
+          git commit -qam "docs: refresh stripe from the connector catalogue"
+          git push
